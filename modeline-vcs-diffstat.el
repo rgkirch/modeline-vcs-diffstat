@@ -42,12 +42,12 @@
   "Customizations for the vcs-diffstat modeline segment."
   :group 'doom-modeline)
 
-(defcustom modeline-vcs-diffstat-char-del ?⁻
+(defcustom modeline-vcs-diffstat-char-del ?-
   "The character to display for deleted lines."
   :type 'character
   :group 'modeline-vcs-diffstat)
 
-(defcustom modeline-vcs-diffstat-char-add ?⁺
+(defcustom modeline-vcs-diffstat-char-add ?+
   "The character to display for added lines."
   :type 'character
   :group 'modeline-vcs-diffstat)
