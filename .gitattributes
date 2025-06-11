@@ -1,0 +1,2 @@
+*.el filter=emacs_header
+LICENSE filter=license_file

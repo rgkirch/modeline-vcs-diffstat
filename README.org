@@ -1,0 +1,115 @@
+#+AUTHOR: Richie Kirchofer
+
+* modeline-vcs-diffstat
+
+- ✅ Visually Compact
+- ✅ Information Dense
+- ✅ Aesthetically Pleasing
+
+This doom modeline segment shows the number of lines deleted and added to the current file. Click it to stage and commit the changes. It's asynchronous and highly configurable.
+
+One changed line would show one deletion and one addition.
+
+[[file:assets/diff-1.svg]]
+
+By default, the modeline segment shows only one character for every ten lines changed. e.g. 33 lines deleted and 88 added would look like this.
+
+[[file:assets/diff-2.svg]]
+
+By default, when there would be more than ten characters, the modeline segment uses numbers instead.
+
+[[file:assets/diff-3.svg]]
+
+* Features
+
+- *Asynchronous Updates*: Fetches Git information in the background.
+- *Smart Display*: Automatically switches between two display modes:
+  - *Symbols* (`--+++`): For a quick visual summary of small (less that 100) lines changed.
+  - *Human-Readable* (`-170 +630`): For a compact numerical summary of large changes.
+- *Staged vs. Unstaged*: Staged vs unstaged use different faces.
+- *Clickable*: Clicking the segment runs ~magit-diff-buffer-file~ to show the current diff and let you stage and commit the file.
+- *Customizable*: Control the characters, colors, display thresholds, and symbol density to your liking.
+
+* Configuration
+
+*1. Installation*
+
+Add the following to your `$DOOMDIR/packages.el`. The `:recipe` tells Doom how to fetch the package directly from GitHub.
+    #+BEGIN_SRC emacs-lisp
+    (package! modeline-vcs-diffstat :recipe (:host github :repo "rgkirch/modeline-vcs-diffstat"))
+    #+END_SRC
+
+
+Ensure `modeline-vcs-diffstat.el` is on your `load-path` and add it to your `doom-modeline` configuration.
+
+Example using `use-package`:
+#+BEGIN_SRC emacs-lisp
+(use-package doom-modeline
+  :ensure t
+  :init (doom-modeline-mode 1)
+  :config
+  (require 'modeline-vcs-diffstat)
+  (doom-modeline-def-modeline 'main
+    '(bar window-state vcs modeline-vcs-diffstat buffer-info)
+    '(misc-info persp-name selection-info)))
+#+END_SRC
+
+*2. Customization*
+
+You can customize the segment's behavior using `M-x customize-group RET modeline-vcs-diffstat RET`.
+
+Here are a few common examples:
+
+*Change the threshold for switching to number display*
+
+Set ~modeline-vcs-diffstat-display-methods~ to switch from symbols to numbers after 50 total changes instead of the default 100.
+
+#+BEGIN_SRC emacs-lisp
+(setq modeline-vcs-diffstat-display-methods
+      '((50 . ,#'modeline-vcs-diffstat--format-human-readable)
+        (1 . ,#'modeline-vcs-diffstat--format-symbols)))
+#+END_SRC
+
+*Make the symbols less dense*
+
+By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, you can change ~modeline-vcs-diffstat-count-function~.
+
+#+BEGIN_SRC emacs-lisp
+(setq modeline-vcs-diffstat-count-function
+      (lambda (lines)
+        (ceiling (/ (float lines) 5.0))))
+#+END_SRC
+
+* 🛑 This is not related to the package. You can stop reading. :noexport:
+
+#+BEGIN_SRC emacs-lisp
+(setq lexical-binding t)
+
+(defun my/create-diff-svg (filename width red-text green-text)
+  "Create a diff-style SVG file with red and green text.
+  FILENAME is the path, WIDTH the canvas width, RED-TEXT and
+  GREEN-TEXT are the strings to display."
+  (let* ((svg (svg-create width 20))
+         (text-node
+          (dom-node 'text
+                    `((font-family . "monospace") (font-size . "16px")
+                      (font-weight . "bold") (x . "50%") (y . "50%")
+                      (dominant-baseline . "middle") (text-anchor . "middle")))))
+    (dom-append-child text-node
+                      (dom-node 'tspan `((fill . ,(face-foreground 'magit-diff-removed))) red-text))
+    (dom-append-child text-node
+                      (dom-node 'tspan `((fill . ,(face-foreground 'magit-diff-added))) green-text))
+    (svg--append svg text-node)
+    (with-temp-file filename
+      (svg-print svg))))
+(make-directory "assets" t)
+
+(my/create-diff-svg "assets/diff-1.svg" 25 "-" "+")
+(my/create-diff-svg "assets/diff-2.svg" 110 "---" "++++++++")
+(my/create-diff-svg "assets/diff-3.svg" 95 "-115" "+250")
+
+"Successfully generated 3 SVG files in ./assets/"
+#+END_SRC
+
+#+RESULTS:
+: Successfully generated 3 SVG files in ./assets/
