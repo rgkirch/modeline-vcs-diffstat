@@ -18,6 +18,9 @@
 ;; It distinguishes between staged and unstaged changes, showing a visual
 ;; representation of lines added and deleted. This allows for a quick,
 ;; at-a-glance summary of the file's status without leaving the editor.
+;;
+;; Clicking (`mouse-1`) on the segment calls `magit-diff-buffer-file`
+;; to show a diff of the current file.
 
 ;;; Code:
 
