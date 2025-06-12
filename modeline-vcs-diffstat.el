@@ -1,22 +1,23 @@
 ;;; modeline-vcs-diffstat.el --- Show staged and unstaged VCS diff stats in the modeline -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Your Name
+;; Copyright (C) 2025 rgkirch
 ;;
 ;; Author: rgkirch
 ;; Maintainer: rgkirch
 ;; Created: June 10, 2025
-;; Version: 0.1
-;; Package-Version: 20250610.1
-;; Package-Requires: ((emacs "25.1") (doom-modeline "2.0") (magit-diff "3.3"))
+;; Version: 0.2
+;; Package-Version: 20250611.2
+;; Package-Requires: ((emacs "26.1") (doom-modeline "2.0") (magit "3.3"))
 ;; Homepage: https://github.com/rgkirch/modeline-vcs-diffstat
 ;;
 ;;; Commentary:
 ;;
-;; A doom modeline segment with ?- and ?+ symbols reflecting how many lines are
-;; removed and added.
+;; This package provides a modeline segment for doom-modeline that displays
+;; version control changes for the current file.
 ;;
-;; mouse-1 calls magit-diff-buffer-file
-
+;; It distinguishes between staged and unstaged changes, showing a visual
+;; representation of lines added and deleted. This allows for a quick,
+;; at-a-glance summary of the file's status without leaving the editor.
 
 ;;; Code:
 
@@ -26,14 +27,14 @@
 
 (defface modeline-vcs-diffstat-staged-del-face
   '((((class color) (min-colors 88) (background light)) :foreground "#CD5C5C")
-    (((class color) (min-colors 88) (background dark)) :foreground "#8B3A3A")
+    (((class color) (min-colors 88) (background dark)) :foreground "dark red")
     (t :inherit magit-diffstat-removed :weight normal))
   "Default face for STAGED deletions in the vcs-diffstat modeline segment."
   :group 'modeline-vcs-diffstat)
 
 (defface modeline-vcs-diffstat-staged-add-face
   '((((class color) (min-colors 88) (background light)) :foreground "#6B8E23")
-    (((class color) (min-colors 88) (background dark)) :foreground "#9ACD32")
+    (((class color) (min-colors 88) (background dark)) :foreground "dark green")
     (t :inherit magit-diffstat-added :weight normal))
   "Default face for STAGED additions in the vcs-diffstat modeline segment."
   :group 'modeline-vcs-diffstat)
@@ -73,8 +74,7 @@
   :group 'modeline-vcs-diffstat)
 
 (defun modeline-vcs-diffstat--default-count-function (lines)
-  "Default function to calculate display symbols. Divides LINES by 10
- and rounds up."
+  "Default function to calculate display symbols. Divides LINES by 10 and rounds up."
   (ceiling (/ (float lines) 10.0)))
 
 (defcustom modeline-vcs-diffstat-count-function
@@ -87,30 +87,38 @@ integer (the number of symbols)."
 
 (defun modeline-vcs-diffstat--line-counts ()
   "Fetch staged and unstaged line counts for the current file.
+If the file is not tracked by Git, treats all lines as unstaged additions.
 Returns a plist with keys :staged-deleted, :unstaged-deleted,
 :staged-added, and :unstaged-added."
-  (when (and buffer-file-name (vc-backend buffer-file-name))
-    (let* ((dir (file-name-directory buffer-file-name))
-           (file (file-name-nondirectory buffer-file-name))
-           ;; Command for Staged (--cached) changes
-           (staged-cmd (format "git -C %s diff --cached --numstat -- %s"
-                               (shell-quote-argument dir)
-                               (shell-quote-argument file)))
-           ;; Command for Unstaged changes
-           (unstaged-cmd (format "git -C %s diff --numstat -- %s"
+  (if (and buffer-file-name (vc-backend buffer-file-name))
+      ;; File is tracked by VC, so get diffs.
+      (let* ((dir (file-name-directory buffer-file-name))
+             (file (file-name-nondirectory buffer-file-name))
+             ;; Command for Staged (--cached) changes
+             (staged-cmd (format "git -C %s diff --cached --numstat -- %s"
                                  (shell-quote-argument dir)
                                  (shell-quote-argument file)))
-           ;; Run both commands
-           (staged-out (shell-command-to-string staged-cmd))
-           (unstaged-out (shell-command-to-string unstaged-cmd))
-           ;; Parse the results
-           (staged-lines (unless (string-empty-p staged-out) (split-string staged-out "\t")))
-           (unstaged-lines (unless (string-empty-p unstaged-out) (split-string unstaged-out "\t"))))
-      ;; Construct the final list, defaulting to 0 if no changes exist
-      (list :staged-deleted (if staged-lines (string-to-number (nth 1 staged-lines)) 0)
-            :unstaged-deleted (if unstaged-lines (string-to-number (nth 1 unstaged-lines)) 0)
-            :staged-added (if staged-lines (string-to-number (nth 0 staged-lines)) 0)
-            :unstaged-added (if unstaged-lines (string-to-number (nth 0 unstaged-lines)) 0)))))
+             ;; Command for Unstaged changes
+             (unstaged-cmd (format "git -C %s diff --numstat -- %s"
+                                   (shell-quote-argument dir)
+                                   (shell-quote-argument file)))
+             ;; Run both commands
+             (staged-out (shell-command-to-string staged-cmd))
+             (unstaged-out (shell-command-to-string unstaged-cmd))
+             ;; Parse the results
+             (staged-lines (unless (string-empty-p staged-out) (split-string staged-out "\t")))
+             (unstaged-lines (unless (string-empty-p unstaged-out) (split-string unstaged-out "\t"))))
+        ;; Construct the final list, defaulting to 0 if no changes exist
+        (list :staged-deleted (if staged-lines (string-to-number (nth 1 staged-lines)) 0)
+              :unstaged-deleted (if unstaged-lines (string-to-number (nth 1 unstaged-lines)) 0)
+              :staged-added (if staged-lines (string-to-number (nth 0 staged-lines)) 0)
+              :unstaged-added (if unstaged-lines (string-to-number (nth 0 unstaged-lines)) 0)))
+    ;; File is not tracked; treat all lines as new unstaged additions.
+    (when buffer-file-name
+      (list :staged-deleted 0
+            :unstaged-deleted 0
+            :staged-added 0
+            :unstaged-added (count-lines (point-min) (point-max))))))
 
 (cl-defun modeline-vcs-diffstat--calculate-display-metrics ((&whole diffs &key staged-deleted unstaged-deleted staged-added unstaged-added &allow-other-keys))
   "Calculate and augment DIFFS plist with display metrics.
@@ -120,10 +128,8 @@ Adds totals, symbol counts, and staged/unstaged counts to the plist."
            (total-add (+ staged-added unstaged-added))
            (minus-count (funcall modeline-vcs-diffstat-count-function total-del))
            (plus-count (funcall modeline-vcs-diffstat-count-function total-add))
-           (staged-minus-count (if (> total-del 0) (round (* minus-count (/ (float staged-deleted)
-                                                                            total-del))) 0))
-           (staged-plus-count (if (> total-add 0) (round (* plus-count (/ (float staged-added)
-                                                                          total-add))) 0)))
+           (staged-minus-count (if (> total-del 0) (round (* minus-count (/ (float staged-deleted) total-del))) 0))
+           (staged-plus-count (if (> total-add 0) (round (* plus-count (/ (float staged-added) total-add))) 0)))
       (cl-list*
        :total-deleted total-del
        :total-added total-add
