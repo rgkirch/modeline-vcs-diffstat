@@ -17,18 +17,22 @@
 
 ;;;; Test Helper Functions
 
-(ert-deftest modeline-vcs-diffstat--format-human-readable-tests ()
-  "Test the human-readable number formatting function."
-  (let* ((metrics '(:total-deleted 1234 :total-added 56789))
-         (expected-string "-1.2K +57K")
-         (formatted-string (modeline-vcs-diffstat--format-human-readable metrics)))
-    (should (string= (substring-no-properties formatted-string) expected-string)))
+(ert-deftest modeline-vcs-diffstat--custom-human-readable-tests ()
+  "Test the custom human-readable number formatting function."
+  ;; Test standard suffixes
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 999) "999"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 1000) "1.0K"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 1234) "1.2K"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 999999) "1000.0K")) ; Stays K before 1M
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 1000000) "1.0M"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 1234567) "1.2M"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 1000000000) "1.0B"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 1000000000000) "1.0T"))
 
-  (let* ((metrics '(:total-deleted 999 :total-added 1000))
-         (expected-string "-999 +1K")
-         (formatted-string (modeline-vcs-diffstat--format-human-readable metrics)))
-    (should (string= (substring-no-properties formatted-string) expected-string))))
-
+  ;; Test E-notation fallback for Peta (10^15) and beyond
+  (should (string= (modeline-vcs-diffstat--custom-human-readable (expt 10 15)) "10E13"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable (expt 10 18)) "10E16"))
+  )
 
 (ert-deftest modeline-vcs-diffstat--calculate-display-metrics-tests ()
   "Test the calculation of display metrics from raw diffs."

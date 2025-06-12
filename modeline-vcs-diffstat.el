@@ -5,8 +5,8 @@
 ;; Author: rgkirch
 ;; Maintainer: rgkirch
 ;; Created: June 10, 2025
-;; Version: 0.3
-;; Package-Version: 20250612.3
+;; Version: 0.4
+;; Package-Version: 20250612.4
 ;; Package-Requires: ((emacs "26.1") (doom-modeline "2.0") (magit "3.3"))
 ;; Homepage: https://github.com/rgkirch/modeline-vcs-diffstat
 ;;
@@ -21,7 +21,7 @@
 ;;
 ;; The display method is chosen based on customizable thresholds. By default:
 ;; - 1-99 changes: Symbols (e.g., --+++)
-;; - 100+ changes: Human-readable with suffixes (e.g., -1.2K, +123M)
+;; - 100+ changes: Human-readable with suffixes (e.g., -1.2K, +123M, -1.5B)
 ;;
 ;; Clicking (`mouse-1`) on the segment calls `magit-diff-buffer-file`
 ;; to show a diff of the current file.
@@ -91,6 +91,14 @@ The function should accept one argument (the number of lines) and return an
 integer (the number of symbols)."
   :type 'function
   :group 'modeline-vcs-diffstat)
+
+(defcustom modeline-vcs-diffstat-number-suffixes
+  '((12 . "T") (9 . "B") (6 . "M") (3 . "K"))
+  "An alist mapping powers of 10 to their suffix.
+Used for formatting large numbers in a human-readable way. The list
+should be sorted with the highest power first. For powers greater
+than the largest entry (e.g., 15 for Peta), E-notation is used."
+  :type '(alist :key-type integer :value-type string))
 
 (declare-function modeline-vcs-diffstat--format-symbols "modeline-vcs-diffstat")
 (declare-function modeline-vcs-diffstat--format-human-readable "modeline-vcs-diffstat")
@@ -175,13 +183,27 @@ Adds totals, symbol counts, and staged/unstaged counts to the plist."
             (propertize unstaged-add-str 'face modeline-vcs-diffstat-face-unstaged-add)
             (propertize staged-add-str 'face modeline-vcs-diffstat-face-staged-add))))
 
+(defun modeline-vcs-diffstat--custom-human-readable (num)
+  "Format NUM into a human-readable string with custom suffixes.
+Uses K, M, B, T, and then falls back to E-notation for larger numbers."
+  (if (< num 1000)
+      (format "%d" num)
+    (let* ((power (floor (/ (log10 num) 3)))
+           (suffix-entry (assoc (* power 3) modeline-vcs-diffstat-number-suffixes)))
+      (if suffix-entry
+          (format "%.1f%s" (/ (float num) (expt 1000 power)) (cdr suffix-entry))
+        ;; Fallback to E-notation for Peta and above.
+        (let ((num-str (format "%d" num)))
+          (format "%sE%d"
+                  (substring num-str 0 2)
+                  (- (length num-str) 2)))))))
+
 (defun modeline-vcs-diffstat--format-human-readable (metrics)
   "Format the display string using human-readable numbers based on METRICS."
-  (let ((del-str (upcase (file-size-human-readable (plist-get metrics :total-deleted) 'si)))
-        (add-str (upcase (file-size-human-readable (plist-get metrics :total-added) 'si))))
+  (let ((del-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-deleted)))
+        (add-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-added))))
     (concat (propertize (format "-%s" del-str) 'face 'magit-diffstat-removed)
-            " "
-            (propertize (format "+%s" add-str) 'face 'magit-diffstat-added))))
+            (propertize (format " +%s" add-str) 'face 'magit-diffstat-added))))
 
 (defvar modeline-vcs-diffstat-keymap
   (let ((map (make-sparse-keymap)))
