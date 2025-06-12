@@ -5,8 +5,8 @@
 ;; Author: rgkirch
 ;; Maintainer: rgkirch
 ;; Created: June 10, 2025
-;; Version: 0.2
-;; Package-Version: 20250611.2
+;; Version: 0.3
+;; Package-Version: 20250612.3
 ;; Package-Requires: ((emacs "26.1") (doom-modeline "2.0") (magit "3.3"))
 ;; Homepage: https://github.com/rgkirch/modeline-vcs-diffstat
 ;;
@@ -18,6 +18,10 @@
 ;; It distinguishes between staged and unstaged changes, showing a visual
 ;; representation of lines added and deleted. This allows for a quick,
 ;; at-a-glance summary of the file's status without leaving the editor.
+;;
+;; The display method is chosen based on customizable thresholds. By default:
+;; - 1-99 changes: Symbols (e.g., --+++)
+;; - 100+ changes: Human-readable with suffixes (e.g., -1.2K, +123M)
 ;;
 ;; Clicking (`mouse-1`) on the segment calls `magit-diff-buffer-file`
 ;; to show a diff of the current file.
@@ -88,6 +92,24 @@ integer (the number of symbols)."
   :type 'function
   :group 'modeline-vcs-diffstat)
 
+(declare-function modeline-vcs-diffstat--format-symbols "modeline-vcs-diffstat")
+(declare-function modeline-vcs-diffstat--format-human-readable "modeline-vcs-diffstat")
+
+(defcustom modeline-vcs-diffstat-display-methods
+  `((100 . ,#'modeline-vcs-diffstat--format-human-readable)
+    (1 . ,#'modeline-vcs-diffstat--format-symbols))
+  "An alist mapping change thresholds to display functions.
+The list should be sorted with the highest threshold first. The segment will
+choose the first method for which the total number of changes is
+greater than or equal to the threshold.
+
+Each element is a cons cell `(THRESHOLD . FUNCTION)`.
+- THRESHOLD is an integer.
+- FUNCTION is a function that accepts one argument (the metrics plist)
+  and returns a formatted, propertized string for the modeline."
+  :type '(alist :key-type integer :value-type function)
+  :group 'modeline-vcs-diffstat)
+
 (defun modeline-vcs-diffstat--line-counts ()
   "Fetch staged and unstaged line counts for the current file.
 If the file is not tracked by Git, treats all lines as unstaged additions.
@@ -142,6 +164,25 @@ Adds totals, symbol counts, and staged/unstaged counts to the plist."
        :unstaged-plus-count (- plus-count staged-plus-count)
        diffs))))
 
+(defun modeline-vcs-diffstat--format-symbols (metrics)
+  "Format the display string using symbols based on METRICS."
+  (let ((staged-del-str (make-string (plist-get metrics :staged-minus-count) modeline-vcs-diffstat-char-del))
+        (unstaged-del-str (make-string (plist-get metrics :unstaged-minus-count) modeline-vcs-diffstat-char-del))
+        (unstaged-add-str (make-string (plist-get metrics :unstaged-plus-count) modeline-vcs-diffstat-char-add))
+        (staged-add-str (make-string (plist-get metrics :staged-plus-count) modeline-vcs-diffstat-char-add)))
+    (concat (propertize staged-del-str 'face modeline-vcs-diffstat-face-staged-del)
+            (propertize unstaged-del-str 'face modeline-vcs-diffstat-face-unstaged-del)
+            (propertize unstaged-add-str 'face modeline-vcs-diffstat-face-unstaged-add)
+            (propertize staged-add-str 'face modeline-vcs-diffstat-face-staged-add))))
+
+(defun modeline-vcs-diffstat--format-human-readable (metrics)
+  "Format the display string using human-readable numbers based on METRICS."
+  (let ((del-str (upcase (file-size-human-readable (plist-get metrics :total-deleted) 'si)))
+        (add-str (upcase (file-size-human-readable (plist-get metrics :total-added) 'si))))
+    (concat (propertize (format "-%s" del-str) 'face 'magit-diffstat-removed)
+            " "
+            (propertize (format "+%s" add-str) 'face 'magit-diffstat-added))))
+
 (defvar modeline-vcs-diffstat-keymap
   (let ((map (make-sparse-keymap)))
     (define-key map [mode-line mouse-1] #'magit-diff-buffer-file)
@@ -154,26 +195,22 @@ Adds totals, symbol counts, and staged/unstaged counts to the plist."
               (total-changes (+ (plist-get metrics :total-deleted)
                                 (plist-get metrics :total-added))))
     (when (> total-changes 0)
-      (let ((staged-del-str (make-string (plist-get metrics :staged-minus-count) modeline-vcs-diffstat-char-del))
-            (unstaged-del-str (make-string (plist-get metrics :unstaged-minus-count) modeline-vcs-diffstat-char-del))
-            (unstaged-add-str (make-string (plist-get metrics :unstaged-plus-count) modeline-vcs-diffstat-char-add))
-            (staged-add-str (make-string (plist-get metrics :staged-plus-count) modeline-vcs-diffstat-char-add)))
-        (propertize
-         (concat " "
-                 (propertize staged-del-str 'face modeline-vcs-diffstat-face-staged-del)
-                 (propertize unstaged-del-str 'face modeline-vcs-diffstat-face-unstaged-del)
-                 (propertize unstaged-add-str 'face modeline-vcs-diffstat-face-unstaged-add)
-                 (propertize staged-add-str 'face modeline-vcs-diffstat-face-staged-add)
-                 " ")
-         'mouse-face 'mode-line-highlight
-         'local-map modeline-vcs-diffstat-keymap
-         'help-echo (concat
-                     "Staged: "
-                     (propertize (format "-%d" (plist-get metrics :staged-deleted)) 'face 'magit-diffstat-removed) " "
-                     (propertize (format "+%d" (plist-get metrics :staged-added)) 'face 'magit-diffstat-added)
-                     " | Unstaged: "
-                     (propertize (format "-%d" (plist-get metrics :unstaged-deleted)) 'face 'magit-diffstat-removed) " "
-                     (propertize (format "+%d" (plist-get metrics :unstaged-added)) 'face 'magit-diffstat-added)))))))
+      (let* ((method-entry (cl-find-if (lambda (entry) (>= total-changes (car entry)))
+                                       modeline-vcs-diffstat-display-methods))
+             (formatter (cdr method-entry)))
+        (when formatter
+          (propertize
+           (concat " " (funcall formatter metrics))
+           ;; Common properties for the whole segment.
+           'mouse-face 'mode-line-highlight
+           'local-map modeline-vcs-diffstat-keymap
+           'help-echo (concat
+                       "Staged: "
+                       (propertize (format "-%d" (plist-get metrics :staged-deleted)) 'face 'magit-diffstat-removed) " "
+                       (propertize (format "+%d" (plist-get metrics :staged-added)) 'face 'magit-diffstat-added)
+                       " | Unstaged: "
+                       (propertize (format "-%d" (plist-get metrics :unstaged-deleted)) 'face 'magit-diffstat-removed) " "
+                       (propertize (format "+%d" (plist-get metrics :unstaged-added)) 'face 'magit-diffstat-added))))))))
 
 (provide 'modeline-vcs-diffstat)
 
