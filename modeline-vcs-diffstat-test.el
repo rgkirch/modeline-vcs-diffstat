@@ -9,13 +9,22 @@
 ;; ERT tests for the `modeline-vcs-diffstat' package.
 ;; To run these tests, make sure `modeline-vcs-diffstat.el` is in your
 ;; `load-path`, then open this file and run `M-x ert-run-tests-in-buffer`.
+;;
+;; This test suite has been updated to reflect the asynchronous, cache-based
+;; architecture of the main package.
 
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'modeline-vcs-diffstat)
 
-;;;; Test Helper Functions
+;; Make the internal segment function available for testing.
+(eval-when-compile
+  (require 'doom-modeline))
+(declare-function doom-modeline-segment--modeline-vcs-diffstat "modeline-vcs-diffstat")
+
+;;;; Unit Tests for Helper Functions
 
 (ert-deftest modeline-vcs-diffstat--custom-human-readable-tests ()
   "Test the custom human-readable number formatting function."
@@ -23,16 +32,16 @@
   (should (string= (modeline-vcs-diffstat--custom-human-readable 999) "999"))
   (should (string= (modeline-vcs-diffstat--custom-human-readable 1000) "1.0K"))
   (should (string= (modeline-vcs-diffstat--custom-human-readable 1234) "1.2K"))
-  (should (string= (modeline-vcs-diffstat--custom-human-readable 999999) "1000.0K")) ; Stays K before 1M
+  ;; The format "%.1f" rounds 999.999 up to 1000.0. This is expected.
+  (should (string= (modeline-vcs-diffstat--custom-human-readable 999999) "1000.0K"))
   (should (string= (modeline-vcs-diffstat--custom-human-readable 1000000) "1.0M"))
   (should (string= (modeline-vcs-diffstat--custom-human-readable 1234567) "1.2M"))
   (should (string= (modeline-vcs-diffstat--custom-human-readable 1000000000) "1.0B"))
   (should (string= (modeline-vcs-diffstat--custom-human-readable 1000000000000) "1.0T"))
 
   ;; Test E-notation fallback for Peta (10^15) and beyond
-  (should (string= (modeline-vcs-diffstat--custom-human-readable (expt 10 15)) "10E13"))
-  (should (string= (modeline-vcs-diffstat--custom-human-readable (expt 10 18)) "10E16"))
-  )
+  (should (string= (modeline-vcs-diffstat--custom-human-readable (expt 10 15)) "10E14"))
+  (should (string= (modeline-vcs-diffstat--custom-human-readable (expt 10 18)) "10E17")))
 
 (ert-deftest modeline-vcs-diffstat--calculate-display-metrics-tests ()
   "Test the calculation of display metrics from raw diffs."
@@ -46,50 +55,57 @@
       (should (= (plist-get metrics :total-added) 70))
 
       ;; Test symbol counts (using the default count function: ceiling(lines/10))
-      (should (= (plist-get metrics :staged-minus-count) 1))
-      (should (= (plist-get metrics :unstaged-minus-count) 2))
-      (should (= (plist-get metrics :staged-plus-count) 3))
-      (should (= (plist-get metrics :unstaged-plus-count) 4)))))
+      (should (= (plist-get metrics :staged-minus-count) 1))   ; 10/30 of 3 total '-' symbols
+      (should (= (plist-get metrics :unstaged-minus-count) 2)) ; 20/30 of 3 total '-' symbols
+      (should (= (plist-get metrics :staged-plus-count) 3))    ; 30/70 of 7 total '+' symbols, rounded
+      (should (= (plist-get metrics :unstaged-plus-count) 4))))) ; 40/70 of 7 total '+' symbols, rounded
 
-(ert-deftest modeline-vcs-diffstat--display-method-selection-tests ()
-  "Test that the correct display formatter is chosen based on thresholds."
+;;;; Integration Test for Segment Rendering
+
+(ert-deftest modeline-vcs-diffstat--segment-rendering-test ()
+  "Test the complete segment rendering from cached metrics."
+  ;; Bind customizable variables to their default values to ensure
+  ;; the test is independent of user configuration.
   (let ((modeline-vcs-diffstat-display-methods
-         `((1000 . ,#'modeline-vcs-diffstat--format-human-readable)
-           (1 . ,#'modeline-vcs-diffstat--format-symbols))))
+         `((100 . ,#'modeline-vcs-diffstat--format-human-readable)
+           (1 . ,#'modeline-vcs-diffstat--format-symbols)))
+        (doom-modeline--active t)) ; Simulate an active window for face checking
 
-    (let* ((small-changes '(:total-deleted 10 :total-added 20))
-           (large-changes '(:total-deleted 500 :total-added 600)))
-      (let* ((small-method-entry
-              (cl-find-if (lambda (entry)
-                            (>= (+ (plist-get small-changes :total-deleted)
-                                   (plist-get small-changes :total-added))
-                                (car entry)))
-                          modeline-vcs-diffstat-display-methods))
-             (large-method-entry
-              (cl-find-if (lambda (entry)
-                            (>= (+ (plist-get large-changes :total-deleted)
-                                   (plist-get large-changes :total-added))
-                                (car entry)))
-                          modeline-vcs-diffstat-display-methods)))
-        (should (eq (cdr small-method-entry) #'modeline-vcs-diffstat--format-symbols))
-        (should (eq (cdr large-method-entry) #'modeline-vcs-diffstat--format-human-readable))))))
+    ;; --- Test Scenario 1: Symbol Display (total changes < 100) ---
+    (let ((modeline-vcs-diffstat--cached-metrics
+           '(:staged-deleted 5 :unstaged-deleted 12 :staged-added 25 :unstaged-added 38
+             :total-deleted 17 :total-added 63 ; total = 80
+             :staged-minus-count 1 :unstaged-minus-count 1
+             :staged-plus-count 3 :unstaged-plus-count 4)))
+      (let ((result (doom-modeline-segment--modeline-vcs-diffstat)))
+        (should (string= (substring-no-properties result) "--+++++++"))
+        ;; Check that the staged deletions face is correct
+        (should (equal (get-text-property 0 'face result)
+                       (doom-modeline-face 'modeline-vcs-diffstat-staged-del-face)))
+        ;; Check that the help-echo tooltip is correctly formatted
+        (let ((help-echo (get-text-property 0 'help-echo result)))
+          (should (string= (substring-no-properties help-echo)
+                           "Staged: -5 +25 | Unstaged: -12 +38")))))
 
-(ert-deftest modeline-vcs-diffstat--format-symbols-test ()
-  "Test the symbolic formatting function with an exact match."
-  (let ((metrics '(:staged-minus-count 1
-                   :unstaged-minus-count 2
-                   :staged-plus-count 3
-                   :unstaged-plus-count 4)))
-    (let* ((staged-del-str (make-string (plist-get metrics :staged-minus-count) modeline-vcs-diffstat-char-del))
-           (unstaged-del-str (make-string (plist-get metrics :unstaged-minus-count) modeline-vcs-diffstat-char-del))
-           (unstaged-add-str (make-string (plist-get metrics :unstaged-plus-count) modeline-vcs-diffstat-char-add))
-           (staged-add-str (make-string (plist-get metrics :staged-plus-count) modeline-vcs-diffstat-char-add))
-           (expected-string (concat staged-del-str
-                                    unstaged-del-str
-                                    unstaged-add-str
-                                    staged-add-str))
-           (formatted-string (modeline-vcs-diffstat--format-symbols metrics)))
-      (should (string= (substring-no-properties formatted-string) expected-string)))))
+    ;; --- Test Scenario 2: Human-Readable Display (total changes >= 100) ---
+    (let ((modeline-vcs-diffstat--cached-metrics
+           '(:staged-deleted 50 :unstaged-deleted 120 :staged-added 250 :unstaged-added 380
+             :total-deleted 170 :total-added 630 ; total = 800
+             )))
+      (let ((result (doom-modeline-segment--modeline-vcs-diffstat)))
+        (should (string= (substring-no-properties result) "-170 +630"))
+        ;; Check the face on the additions part
+        (should (equal (get-text-property 5 'face result)
+                       (doom-modeline-face 'magit-diffstat-added)))
+        (let ((help-echo (get-text-property 0 'help-echo result)))
+          (should (string= (substring-no-properties help-echo)
+                           "Staged: -50 +250 | Unstaged: -120 +380")))))
+
+    ;; --- Test Scenario 3: No Changes ---
+    (let ((modeline-vcs-diffstat--cached-metrics
+           '(:staged-deleted 0 :unstaged-deleted 0 :staged-added 0 :unstaged-added 0
+             :total-deleted 0 :total-added 0)))
+      (should (null (doom-modeline-segment--modeline-vcs-diffstat))))))
 
 (provide 'modeline-vcs-diffstat-tests)
 
