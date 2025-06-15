@@ -40,9 +40,10 @@ It also gracfully handles lots of changes.
 
 Add the following to your ~$DOOMDIR/packages.el~. The ~:recipe~ tells Doom how to fetch the package directly from GitHub.
     #+BEGIN_SRC emacs-lisp
-    (package! modeline-vcs-diffstat :recipe (:host github :repo "rgkirch/modeline-vcs-diffstat"))
+    (package! modeline-vcs-diffstat
+      :recipe (:host github
+               :repo "rgkirch/modeline-vcs-diffstat"))
     #+END_SRC
-
 
 Ensure ~modeline-vcs-diffstat.el~ is on your ~load-path~ and add it to your ~doom-modeline~ configuration.
 
@@ -86,7 +87,7 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
 
 * 🛑 This is not related to the package. You can stop reading. :noexport:
 
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :results none
 (setq lexical-binding t)
 
 (defun my/create-diff-svg (filename width red-text green-text)
@@ -114,9 +115,4 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
 (my/create-diff-svg "assets/diff-4.svg" 45 "--" "++")
 (my/create-diff-svg "assets/diff-5.svg" 85 "-170" "+630")
 (my/create-diff-svg "assets/diff-6.svg" 105 "-2.1K" "+3.9M")
-
-"Successfully generated 3 SVG files in ./assets/"
 #+END_SRC
-
-#+RESULTS:
-: Successfully generated 3 SVG files in ./assets/
