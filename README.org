@@ -20,6 +20,10 @@ By default, when there would be more than ten characters, the modeline segment u
 
 [[file:assets/diff-3.svg]]
 
+It also gracfully handles lots of changes.
+
+[[file:assets/diff-5.svg]]
+
 * Features
 
 - *Asynchronous Updates*: Fetches Git information in the background.
@@ -109,6 +113,7 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
 (my/create-diff-svg "assets/diff-3.svg" 85 "-115" "+250")
 (my/create-diff-svg "assets/diff-4.svg" 45 "--" "++")
 (my/create-diff-svg "assets/diff-5.svg" 85 "-170" "+630")
+(my/create-diff-svg "assets/diff-5.svg" 105 "-2.1K" "+3.9M")
 
 "Successfully generated 3 SVG files in ./assets/"
 #+END_SRC
