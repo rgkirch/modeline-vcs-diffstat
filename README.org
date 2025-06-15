@@ -38,15 +38,15 @@ It also gracfully handles lots of changes.
 
 *1. Installation*
 
-Add the following to your `$DOOMDIR/packages.el`. The `:recipe` tells Doom how to fetch the package directly from GitHub.
+Add the following to your ~$DOOMDIR/packages.el~. The ~:recipe~ tells Doom how to fetch the package directly from GitHub.
     #+BEGIN_SRC emacs-lisp
     (package! modeline-vcs-diffstat :recipe (:host github :repo "rgkirch/modeline-vcs-diffstat"))
     #+END_SRC
 
 
-Ensure `modeline-vcs-diffstat.el` is on your `load-path` and add it to your `doom-modeline` configuration.
+Ensure ~modeline-vcs-diffstat.el~ is on your ~load-path~ and add it to your ~doom-modeline~ configuration.
 
-Example using `use-package`:
+Example using ~use-package~:
 #+BEGIN_SRC emacs-lisp
 (use-package doom-modeline
   :ensure t
@@ -60,7 +60,7 @@ Example using `use-package`:
 
 *2. Customization*
 
-You can customize the segment's behavior using `M-x customize-group RET modeline-vcs-diffstat RET`.
+You can customize the segment's behavior using ~M-x customize-group RET modeline-vcs-diffstat RET~.
 
 Here are a few common examples:
 
