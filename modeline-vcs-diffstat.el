@@ -7,9 +7,8 @@
 
 ;; Homepage: https://github.com/rgkirch/modeline-vcs-diffstat
 
-;; Version: 0.6
-;; Package-Version: 20250613.6
-;; Package-Requires: ((emacs "26.1") (doom-modeline "2.0") (magit "3.3"))
+;; Package-Version: 0.6
+;; Package-Requires: ((emacs "26.1") doom-modeline magit)
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;
@@ -67,7 +66,7 @@
   :group 'modeline-vcs-diffstat)
 
 (defface modeline-vcs-diffstat-face-staged-add-default
-  `((t :foreground ,(face-foreground 'magit-diff-added-highlight)))
+  `((t :foreground ,(face-foreground 'magit-diff-added)))
   "Face for STAGED additions.")
 
 (defcustom modeline-vcs-diffstat-face-staged-add 'modeline-vcs-diffstat-face-staged-add-default
@@ -76,7 +75,7 @@
   :group 'modeline-vcs-diffstat)
 
 (defface modeline-vcs-diffstat-face-staged-del-default
-  `((t :foreground ,(face-foreground 'magit-diff-removed-highlight)))
+  `((t :foreground ,(face-foreground 'magit-diff-removed)))
   "Face for STAGED deletions.")
 
 (defcustom modeline-vcs-diffstat-face-staged-del 'modeline-vcs-diffstat-face-staged-del-default
@@ -85,7 +84,7 @@
   :group 'modeline-vcs-diffstat)
 
 (defface modeline-vcs-diffstat-face-unstaged-add-default
-  `((t :foreground ,(face-foreground 'magit-diff-added)))
+  `((t :foreground ,(face-foreground 'magit-diff-added-highlight)))
   "Face for UNSTAGED additions.")
 
 (defcustom modeline-vcs-diffstat-face-unstaged-add 'modeline-vcs-diffstat-face-unstaged-add-default
@@ -94,7 +93,7 @@
   :group 'modeline-vcs-diffstat)
 
 (defface modeline-vcs-diffstat-face-unstaged-del-default
-  `((t :foreground ,(face-foreground 'magit-diff-removed)))
+  `((t :foreground ,(face-foreground 'magit-diff-removed-highlight)))
   "Face for UNSTAGED deletions.")
 
 (defcustom modeline-vcs-diffstat-face-unstaged-del 'modeline-vcs-diffstat-face-unstaged-del-default

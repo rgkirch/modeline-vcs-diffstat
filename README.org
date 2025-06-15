@@ -34,15 +34,14 @@ It also gracfully handles lots of changes.
 - *Clickable*: Clicking the segment runs ~magit-diff-buffer-file~ to show the current diff and let you stage and commit the file.
 - *Customizable*: Control the characters, colors, display thresholds, and symbol density to your liking.
 
-* Configuration
-
-*1. Installation*
+* Installation
 
 Add the following to your ~$DOOMDIR/packages.el~. The ~:recipe~ tells Doom how to fetch the package directly from GitHub.
     #+BEGIN_SRC emacs-lisp
-    (package! modeline-vcs-diffstat :recipe (:host github :repo "rgkirch/modeline-vcs-diffstat"))
+    (package! modeline-vcs-diffstat
+      :recipe (:host github
+               :repo "rgkirch/modeline-vcs-diffstat"))
     #+END_SRC
-
 
 Ensure ~modeline-vcs-diffstat.el~ is on your ~load-path~ and add it to your ~doom-modeline~ configuration.
 
@@ -58,13 +57,10 @@ Example using ~use-package~:
     '(misc-info persp-name selection-info)))
 #+END_SRC
 
-*2. Customization*
-
+* Customization
 You can customize the segment's behavior using ~M-x customize-group RET modeline-vcs-diffstat RET~.
 
-Here are a few common examples:
-
-*Change the threshold for switching to number display*
+** Change the threshold for switching to number display
 
 Set ~modeline-vcs-diffstat-display-methods~ to switch from symbols to numbers after 50 total changes instead of the default 100.
 
@@ -74,7 +70,7 @@ Set ~modeline-vcs-diffstat-display-methods~ to switch from symbols to numbers af
         (1 . ,#'modeline-vcs-diffstat--format-symbols)))
 #+END_SRC
 
-*Make the symbols less dense*
+** Use ~x~ symbols for ~y~ lines changed
 
 By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, you can change ~modeline-vcs-diffstat-count-function~.
 
@@ -83,40 +79,93 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
       (lambda (lines)
         (ceiling (/ (float lines) 5.0))))
 #+END_SRC
+** Change colors
 
 * 🛑 This is not related to the package. You can stop reading. :noexport:
+#+begin_src emacs-lisp :results none
+(concat (propertize "-115" 'face 'magit-diff-removed-highlight)
+        (propertize "+250" 'face 'magit-diff-added-highlight))
+#+end_src
 
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :results none
 (setq lexical-binding t)
 
-(defun my/create-diff-svg (filename width red-text green-text)
-  "Create a diff-style SVG file with red and green text.
-  FILENAME is the path, WIDTH the canvas width, RED-TEXT and
-  GREEN-TEXT are the strings to display."
-  (let* ((svg (svg-create width 20))
+(defun my/create-diff-svg (filename width staged-del unstaged-del unstaged-add staged-add)
+  "Create a diff-style SVG file with red and green text for changes.
+FILENAME is the path, WIDTH the canvas width. The other four
+arguments are strings for staged deletions, unstaged deletions,
+unstaged additions, and staged additions."
+  (let* ((staged-del-color (or (face-foreground 'magit-diff-removed nil t) "darkred"))
+         (unstaged-del-color (or (face-foreground 'magit-diff-removed-highlight nil t) "red"))
+         (unstaged-add-color (or (face-foreground 'magit-diff-added-highlight nil t) "green"))
+         (staged-add-color (or (face-foreground 'magit-diff-added nil t) "darkgreen"))
+         (svg (svg-create width 20))
          (text-node
           (dom-node 'text
                     `((font-family . "monospace") (font-size . "16px")
                       (font-weight . "bold") (x . "50%") (y . "50%")
                       (dominant-baseline . "middle") (text-anchor . "middle")))))
+    ;; Append tspan nodes for each type of change.
     (dom-append-child text-node
-                      (dom-node 'tspan `((fill . ,(face-foreground 'magit-diff-removed))) red-text))
+                      (dom-node 'tspan `((fill . ,staged-del-color)) staged-del))
     (dom-append-child text-node
-                      (dom-node 'tspan `((fill . ,(face-foreground 'magit-diff-added))) green-text))
+                      (dom-node 'tspan `((fill . ,unstaged-del-color)) unstaged-del))
+    (dom-append-child text-node
+                      (dom-node 'tspan `((fill . ,unstaged-add-color)) unstaged-add))
+    (dom-append-child text-node
+                      (dom-node 'tspan `((fill . ,staged-add-color)) staged-add))
+
     (svg--append svg text-node)
     (with-temp-file filename
       (svg-print svg))))
+
+;; Ensure the target directory exists.
 (make-directory "assets" t)
 
-(my/create-diff-svg "assets/diff-1.svg" 25 "-" "+")
-(my/create-diff-svg "assets/diff-2.svg" 115 "---" "++++++++")
-(my/create-diff-svg "assets/diff-3.svg" 85 "-115" "+250")
-(my/create-diff-svg "assets/diff-4.svg" 45 "--" "++")
-(my/create-diff-svg "assets/diff-5.svg" 85 "-170" "+630")
-(my/create-diff-svg "assets/diff-6.svg" 105 "-2.1K" "+3.9M")
-
-"Successfully generated 3 SVG files in ./assets/"
+;; Updated function calls with the new signature:
+;; (filename width staged-del unstaged-del unstaged-add staged-add)
+;; Original red-text is now unstaged-del, green-text is unstaged-add.
+;; Staged changes are empty strings as per the request.
+(my/create-diff-svg "assets/diff-1.svg" 25 "" "-" "+" "")
+(my/create-diff-svg "assets/diff-2.svg" 115 "" "---" "++++++++" "")
+(my/create-diff-svg "assets/diff-3.svg" 85 "" "-115" "+250" "")
+(my/create-diff-svg "assets/diff-4.svg" 45 "" "--" "++" "")
+(my/create-diff-svg "assets/diff-5.svg" 85 "" "-170" "+630" "")
+(my/create-diff-svg "assets/diff-6.svg" 105 "" "-2.1K" "+3.9M" "")
 #+END_SRC
+#+begin_src emacs-lisp
+(progn (setq lexical-binding t)
 
-#+RESULTS:
-: Successfully generated 3 SVG files in ./assets/
+ (defun my/create-diff-svg (filename width staged-del unstaged-del unstaged-add staged-add)
+   "Create a diff-style SVG file with red and green text for changes.
+FILENAME is the path, WIDTH the canvas width. The other four
+arguments are strings for staged deletions, unstaged deletions,
+unstaged additions, and staged additions."
+   (let* ((staged-del-color (or (face-foreground 'magit-diff-removed nil t) "darkred"))
+          (unstaged-del-color (or (face-foreground 'magit-diff-removed-highlight nil t) "red"))
+          (unstaged-add-color (or (face-foreground 'magit-diff-added-highlight nil t) "green"))
+          (staged-add-color (or (face-foreground 'magit-diff-added nil t) "darkgreen"))
+          (svg (svg-create width 20))
+          (text-node
+           (dom-node 'text
+                     `((font-family . "monospace") (font-size . "16px")
+                       (font-weight . "bold") (x . "50%") (y . "50%")
+                       (dominant-baseline . "middle") (text-anchor . "middle")))))
+     ;; Append tspan nodes for each type of change.
+     (dom-append-child text-node
+                       (dom-node 'tspan `((fill . ,staged-del-color)) staged-del))
+     (dom-append-child text-node
+                       (dom-node 'tspan `((fill . ,unstaged-del-color)) unstaged-del))
+     (dom-append-child text-node
+                       (dom-node 'tspan `((fill . ,unstaged-add-color)) unstaged-add))
+     (dom-append-child text-node
+                       (dom-node 'tspan `((fill . ,staged-add-color)) staged-add))
+
+     (svg--append svg text-node)
+     svg))
+
+
+ (my/create-diff-svg "assets/diff-3.svg" 85 "" "-115" "+250" "")
+
+ )
+#+end_src
