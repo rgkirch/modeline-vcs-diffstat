@@ -24,8 +24,8 @@ By default, when there would be more than ten characters, the modeline segment u
 
 - *Asynchronous Updates*: Fetches Git information in the background.
 - *Smart Display*: Automatically switches between two display modes:
-  - *Symbols* (`--+++`): For a quick visual summary of small (less that 100) lines changed.
-  - *Human-Readable* (`-170 +630`): For a compact numerical summary of large changes.
+  - *Symbols* ([[file:assets/diff-4.svg]]): For a quick visual summary of small (less that 100) lines changed.
+  - *Human-Readable* ([[file:assets/diff-5.svg]]): For a compact numerical summary of large changes.
 - *Staged vs. Unstaged*: Staged vs unstaged use different faces.
 - *Clickable*: Clicking the segment runs ~magit-diff-buffer-file~ to show the current diff and let you stage and commit the file.
 - *Customizable*: Control the characters, colors, display thresholds, and symbol density to your liking.
@@ -105,8 +105,10 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
 (make-directory "assets" t)
 
 (my/create-diff-svg "assets/diff-1.svg" 25 "-" "+")
-(my/create-diff-svg "assets/diff-2.svg" 110 "---" "++++++++")
-(my/create-diff-svg "assets/diff-3.svg" 95 "-115" "+250")
+(my/create-diff-svg "assets/diff-2.svg" 115 "---" "++++++++")
+(my/create-diff-svg "assets/diff-3.svg" 85 "-115" "+250")
+(my/create-diff-svg "assets/diff-4.svg" 45 "--" "++")
+(my/create-diff-svg "assets/diff-5.svg" 85 "-170" "+630")
 
 "Successfully generated 3 SVG files in ./assets/"
 #+END_SRC
