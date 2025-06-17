@@ -214,3 +214,4 @@ unstaged additions, and staged additions."
 
 #+RESULTS:
 [[file:./assets/06.svg]]
+* See [[https://github.com/rgkirch/my-emacs-packages][my other emacs packages]]
