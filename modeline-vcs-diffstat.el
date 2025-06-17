@@ -176,7 +176,7 @@ Returns a plist with keys :staged-removed, :unstaged-removed,
             :staged-added 0
             :unstaged-added (count-lines (point-min) (point-max))))))
 
-(cl-defun modeline-vcs-diffstat--metrics ((&whole diffs &key staged-removed unstaged-removed staged-added unstaged-added &allow-other-keys))
+(cl-defun modeline-vcs-diffstat--metrics ((&whole diffs &key (staged-removed 0) (unstaged-removed 0) (staged-added 0) (unstaged-added 0) &allow-other-keys))
   "Calculate and augment DIFFS plist with display metrics.
 Adds totals, symbol counts, and staged/unstaged counts to the plist."
   (when diffs

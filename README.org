@@ -1,3 +1,4 @@
+# -*- lexical-binding:t; coding:utf-8 -*-
 #+AUTHOR: Richie Kirchofer
 
 * modeline-vcs-diffstat
@@ -10,26 +11,56 @@ This doom modeline segment shows the number of lines deleted and added to the cu
 
 One changed line would show one deletion and one addition.
 
-[[file:assets/diff-1.svg]]
+#+begin_src emacs-lisp :results file :file ./assets/01.svg
+(beep-boop
+ '(:staged-removed 1
+   :staged-added 1))
+#+end_src
 
-By default, the modeline segment shows only one character for every ten lines changed. e.g. 33 lines deleted and 88 added would look like this.
+#+RESULTS:
+[[file:./assets/01.svg]]
 
-[[file:assets/diff-2.svg]]
+By default, the modeline segment shows only one character for every ten lines changed. e.g. 33 lines deleted and 66 added would look like this.
+
+#+begin_src emacs-lisp :results file :file ./assets/02.svg
+(beep-boop
+ '(:staged-removed 33
+   :staged-added 66))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/02.svg]]
 
 By default, when there would be more than ten characters, the modeline segment uses numbers instead.
+
+#+begin_src emacs-lisp :results file :file ./assets/03.svg
+(beep-boop
+ '(:staged-removed 44
+   :staged-added 66))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/03.svg]]
 
 [[file:assets/diff-3.svg]]
 
 It also gracfully handles lots of changes.
 
-[[file:assets/diff-6.svg]]
+#+begin_src emacs-lisp :results file :file ./assets/04.svg
+(beep-boop
+ '(:staged-removed 2123
+   :staged-added 3917654))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/04.svg]]
 
 * Features
 
 - *Asynchronous Updates*: Fetches Git information in the background.
 - *Smart Display*: Automatically switches between two display modes:
-  - *Symbols* ([[file:assets/diff-4.svg]]): For a quick visual summary of small (less that 100) lines changed.
-  - *Human-Readable* ([[file:assets/diff-5.svg]]): For a compact numerical summary of large changes.
+  - *Symbols* ([[file:assets/05.svg]]): For a quick visual summary of small (less that 100) lines changed.
+  - *Human-Readable* ([[file:assets/06.svg]]): For a compact numerical summary of large changes.
 - *Staged vs. Unstaged*: Staged vs unstaged use different faces.
 - *Clickable*: Clicking the segment runs ~magit-diff-buffer-file~ to show the current diff and let you stage and commit the file.
 - *Customizable*: Control the characters, colors, display thresholds, and symbol density to your liking.
@@ -64,21 +95,52 @@ You can customize the segment's behavior using ~M-x customize-group RET modeline
 
 Set ~modeline-vcs-diffstat-display-methods~ to switch from symbols to numbers after 50 total changes instead of the default 100.
 
-#+BEGIN_SRC emacs-lisp
-(setq modeline-vcs-diffstat-display-methods
-      '((50 . ,#'modeline-vcs-diffstat--format-human-readable)
-        (1 . ,#'modeline-vcs-diffstat--format-symbols)))
-#+END_SRC
+#+begin_src emacs-lisp :results file :file ./assets/07.svg
+(beep-boop
+ '(:staged-removed 25
+   :staged-added 25))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/07.svg]]
+
+#+begin_src emacs-lisp :results file :file ./assets/08.svg
+(let ((modeline-vcs-diffstat-display-methods
+       `((50 . ,#'modeline-vcs-diffstat--metrics-numeric-pstring)
+         (1 . ,#'modeline-vcs-diffstat--symbol-pstring))))
+  (beep-boop
+   '(:staged-removed 25
+     :staged-added 25)))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/08.svg]]
+
 
 ** Use ~x~ symbols for ~y~ lines changed
 
 By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, you can change ~modeline-vcs-diffstat-count-function~.
 
-#+BEGIN_SRC emacs-lisp
-(setq modeline-vcs-diffstat-count-function
+#+begin_src emacs-lisp :results file :file ./assets/09.svg
+(beep-boop
+ '(:staged-removed 25
+   :staged-added 25))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/09.svg]]
+
+#+begin_src emacs-lisp :results file :file ./assets/10.svg
+(let ((modeline-vcs-diffstat-count-function
       (lambda (lines)
-        (ceiling (/ (float lines) 5.0))))
-#+END_SRC
+        (ceiling (/ (float lines) 5.0)))))
+  (beep-boop
+   '(:staged-removed 25
+     :staged-added 25)))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/10.svg]]
 ** Change colors
 
 * 🛑 This is not related to the package. You can stop reading. :noexport:
@@ -87,52 +149,6 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
         (propertize "+250" 'face 'magit-diff-added-highlight))
 #+end_src
 
-#+BEGIN_SRC emacs-lisp :results none
-(setq lexical-binding t)
-
-(defun my/create-diff-svg (filename width staged-del unstaged-del unstaged-add staged-add)
-  "Create a diff-style SVG file with red and green text for changes.
-FILENAME is the path, WIDTH the canvas width. The other four
-arguments are strings for staged deletions, unstaged deletions,
-unstaged additions, and staged additions."
-  (let* ((staged-del-color (or (face-foreground 'magit-diff-removed nil t) "darkred"))
-         (unstaged-del-color (or (face-foreground 'magit-diff-removed-highlight nil t) "red"))
-         (unstaged-add-color (or (face-foreground 'magit-diff-added-highlight nil t) "green"))
-         (staged-add-color (or (face-foreground 'magit-diff-added nil t) "darkgreen"))
-         (svg (svg-create width 20))
-         (text-node
-          (dom-node 'text
-                    `((font-family . "monospace") (font-size . "16px")
-                      (font-weight . "bold") (x . "50%") (y . "50%")
-                      (dominant-baseline . "middle") (text-anchor . "middle")))))
-    ;; Append tspan nodes for each type of change.
-    (dom-append-child text-node
-                      (dom-node 'tspan `((fill . ,staged-del-color)) staged-del))
-    (dom-append-child text-node
-                      (dom-node 'tspan `((fill . ,unstaged-del-color)) unstaged-del))
-    (dom-append-child text-node
-                      (dom-node 'tspan `((fill . ,unstaged-add-color)) unstaged-add))
-    (dom-append-child text-node
-                      (dom-node 'tspan `((fill . ,staged-add-color)) staged-add))
-
-    (svg--append svg text-node)
-    (with-temp-file filename
-      (svg-print svg))))
-
-;; Ensure the target directory exists.
-(make-directory "assets" t)
-
-;; Updated function calls with the new signature:
-;; (filename width staged-del unstaged-del unstaged-add staged-add)
-;; Original red-text is now unstaged-del, green-text is unstaged-add.
-;; Staged changes are empty strings as per the request.
-(my/create-diff-svg "assets/diff-1.svg" 25 "" "-" "+" "")
-(my/create-diff-svg "assets/diff-2.svg" 115 "" "---" "++++++++" "")
-(my/create-diff-svg "assets/diff-3.svg" 85 "" "-115" "+250" "")
-(my/create-diff-svg "assets/diff-4.svg" 45 "" "--" "++" "")
-(my/create-diff-svg "assets/diff-5.svg" 85 "" "-170" "+630" "")
-(my/create-diff-svg "assets/diff-6.svg" 105 "" "-2.1K" "+3.9M" "")
-#+END_SRC
 #+begin_src emacs-lisp
 (progn (setq lexical-binding t)
 
@@ -169,3 +185,32 @@ unstaged additions, and staged additions."
 
  )
 #+end_src
+
+* beep-boop
+:PROPERTIES:
+:CREATED-AT: [2025-06-16 21:36:01]
+:END:
+#+begin_src emacs-lisp :results none
+(defun beep-boop (metrics)
+  (propertized-text-to-svg (modeline-vcs-diffstat--format-metrics (modeline-vcs-diffstat--metrics metrics))))
+#+end_src
+
+
+#+begin_src emacs-lisp :results file :file ./assets/05.svg
+(beep-boop
+ '(:staged-removed 20
+   :staged-added 20))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/05.svg]]
+
+
+#+begin_src emacs-lisp :results file :file ./assets/06.svg
+(beep-boop
+ '(:staged-removed 117
+   :staged-added 630))
+#+end_src
+
+#+RESULTS:
+[[file:./assets/06.svg]]
