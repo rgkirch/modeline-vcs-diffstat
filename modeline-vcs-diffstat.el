@@ -31,7 +31,7 @@
 ;; version control changes for the current file.
 ;;
 ;; It distinguishes between staged and unstaged changes, showing a visual
-;; representation of lines added and deleted. This allows for a quick,
+;; representation of lines added and removed. This allows for a quick,
 ;; at-a-glance summary of the file's status without leaving the editor.
 ;;
 ;; The display method is chosen based on customizable thresholds. By default:
@@ -56,7 +56,7 @@
   :group 'doom-modeline)
 
 (defcustom modeline-vcs-diffstat-char-del ?-
-  "The character to display for deleted lines."
+  "The character to display for removed lines."
   :type 'character
   :group 'modeline-vcs-diffstat)
 
@@ -144,7 +144,7 @@ Each element is a cons cell `(THRESHOLD . FUNCTION)`.
 (defun modeline-vcs-diffstat--line-counts ()
   "Fetch staged and unstaged line counts for the current file.
 If the file is not tracked by Git, treats all lines as unstaged additions.
-Returns a plist with keys :staged-deleted, :unstaged-deleted,
+Returns a plist with keys :staged-removed, :unstaged-removed,
 :staged-added, and :unstaged-added."
   (if (and buffer-file-name (vc-backend buffer-file-name))
       ;; File is tracked by VC, so get diffs.
@@ -165,29 +165,29 @@ Returns a plist with keys :staged-deleted, :unstaged-deleted,
              (staged-lines (unless (string-empty-p staged-out) (split-string staged-out "\t")))
              (unstaged-lines (unless (string-empty-p unstaged-out) (split-string unstaged-out "\t"))))
         ;; Construct the final list, defaulting to 0 if no changes exist
-        (list :staged-deleted (if staged-lines (string-to-number (nth 1 staged-lines)) 0)
-              :unstaged-deleted (if unstaged-lines (string-to-number (nth 1 unstaged-lines)) 0)
+        (list :staged-removed (if staged-lines (string-to-number (nth 1 staged-lines)) 0)
+              :unstaged-removed (if unstaged-lines (string-to-number (nth 1 unstaged-lines)) 0)
               :staged-added (if staged-lines (string-to-number (nth 0 staged-lines)) 0)
               :unstaged-added (if unstaged-lines (string-to-number (nth 0 unstaged-lines)) 0)))
     ;; File is not tracked; treat all lines as new unstaged additions.
     (when buffer-file-name
-      (list :staged-deleted 0
-            :unstaged-deleted 0
+      (list :staged-removed 0
+            :unstaged-removed 0
             :staged-added 0
             :unstaged-added (count-lines (point-min) (point-max))))))
 
-(cl-defun modeline-vcs-diffstat--calculate-display-metrics ((&whole diffs &key staged-deleted unstaged-deleted staged-added unstaged-added &allow-other-keys))
+(cl-defun modeline-vcs-diffstat--calculate-display-metrics ((&whole diffs &key staged-removed unstaged-removed staged-added unstaged-added &allow-other-keys))
   "Calculate and augment DIFFS plist with display metrics.
 Adds totals, symbol counts, and staged/unstaged counts to the plist."
   (when diffs
-    (let* ((total-del (+ staged-deleted unstaged-deleted))
+    (let* ((total-del (+ staged-removed unstaged-removed))
            (total-add (+ staged-added unstaged-added))
            (minus-count (funcall modeline-vcs-diffstat-count-function total-del))
            (plus-count (funcall modeline-vcs-diffstat-count-function total-add))
-           (staged-minus-count (if (> total-del 0) (round (* minus-count (/ (float staged-deleted) total-del))) 0))
+           (staged-minus-count (if (> total-del 0) (round (* minus-count (/ (float staged-removed) total-del))) 0))
            (staged-plus-count (if (> total-add 0) (round (* plus-count (/ (float staged-added) total-add))) 0)))
       (cl-list*
-       :total-deleted total-del
+       :total-removed total-del
        :total-added total-add
        :staged-minus-count staged-minus-count
        :unstaged-minus-count (- minus-count staged-minus-count)
@@ -223,7 +223,7 @@ Uses K, M, B, T, and then falls back to E-notation for larger numbers."
 
 (defun modeline-vcs-diffstat--format-human-readable (metrics)
   "Format the display string using human-readable numbers based on METRICS."
-  (let ((del-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-deleted)))
+  (let ((del-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-removed)))
         (add-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-added))))
     (concat (propertize (format "-%s" del-str) 'face (doom-modeline-face 'magit-diffstat-removed))
             (propertize (format " +%s" add-str) 'face (doom-modeline-face 'magit-diffstat-added)))))
@@ -262,7 +262,7 @@ asynchronously. It does NOT do any string formatting."
   ;; It reads the raw data from the cache and builds the string on every redraw.
   ;; This is fast and ensures faces update correctly for active/inactive windows.
   (when-let* ((metrics modeline-vcs-diffstat--cached-metrics)
-              (total-changes (+ (or (plist-get metrics :total-deleted) 0)
+              (total-changes (+ (or (plist-get metrics :total-removed) 0)
                                 (or (plist-get metrics :total-added) 0))))
     (when (> total-changes 0)
       (let* ((method-entry (cl-find-if (lambda (entry) (>= total-changes (car entry)))
@@ -276,10 +276,10 @@ asynchronously. It does NOT do any string formatting."
            'local-map modeline-vcs-diffstat-keymap
            'help-echo (concat
                        "Staged: "
-                       (propertize (format "-%d" (plist-get metrics :staged-deleted)) 'face 'magit-diffstat-removed) " "
+                       (propertize (format "-%d" (plist-get metrics :staged-removed)) 'face 'magit-diffstat-removed) " "
                        (propertize (format "+%d" (plist-get metrics :staged-added)) 'face 'magit-diffstat-added)
                        " | Unstaged: "
-                       (propertize (format "-%d" (plist-get metrics :unstaged-deleted)) 'face 'magit-diffstat-removed) " "
+                       (propertize (format "-%d" (plist-get metrics :unstaged-removed)) 'face 'magit-diffstat-removed) " "
                        (propertize (format "+%d" (plist-get metrics :unstaged-added)) 'face 'magit-diffstat-added))))))))
 
 (defun modeline-vcs-diffstat--setup-update-timer ()
