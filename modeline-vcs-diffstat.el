@@ -121,12 +121,12 @@ should be sorted with the highest power first. For powers greater
 than the largest entry (e.g., 15 for Peta), E-notation is used."
   :type '(alist :key-type integer :value-type string))
 
-(declare-function modeline-vcs-diffstat--format-symbols "modeline-vcs-diffstat")
-(declare-function modeline-vcs-diffstat--format-human-readable "modeline-vcs-diffstat")
+(declare-function modeline-vcs-diffstat--symbol-pstring "modeline-vcs-diffstat")
+(declare-function modeline-vcs-diffstat--metrics-numeric-pstring "modeline-vcs-diffstat")
 
 (defcustom modeline-vcs-diffstat-display-methods
-  `((100 . ,#'modeline-vcs-diffstat--format-human-readable)
-    (1 . ,#'modeline-vcs-diffstat--format-symbols))
+  `((100 . ,#'modeline-vcs-diffstat--metrics-numeric-pstring)
+    (1 . ,#'modeline-vcs-diffstat--symbol-pstring))
   "An alist mapping change thresholds to display functions.
 The list should be sorted with the highest threshold first. The segment will
 choose the first method for which the total number of changes is
@@ -141,7 +141,7 @@ Each element is a cons cell `(THRESHOLD . FUNCTION)`.
 
 ;; --- Core Data Fetching and Formatting Functions ---
 
-(defun modeline-vcs-diffstat--line-counts ()
+(defun modeline-vcs-diffstat--num-lines-changed ()
   "Fetch staged and unstaged line counts for the current file.
 If the file is not tracked by Git, treats all lines as unstaged additions.
 Returns a plist with keys :staged-removed, :unstaged-removed,
@@ -176,7 +176,7 @@ Returns a plist with keys :staged-removed, :unstaged-removed,
             :staged-added 0
             :unstaged-added (count-lines (point-min) (point-max))))))
 
-(cl-defun modeline-vcs-diffstat--calculate-display-metrics ((&whole diffs &key staged-removed unstaged-removed staged-added unstaged-added &allow-other-keys))
+(cl-defun modeline-vcs-diffstat--metrics ((&whole diffs &key staged-removed unstaged-removed staged-added unstaged-added &allow-other-keys))
   "Calculate and augment DIFFS plist with display metrics.
 Adds totals, symbol counts, and staged/unstaged counts to the plist."
   (when diffs
@@ -195,7 +195,7 @@ Adds totals, symbol counts, and staged/unstaged counts to the plist."
        :unstaged-plus-count (- plus-count staged-plus-count)
        diffs))))
 
-(defun modeline-vcs-diffstat--format-symbols (metrics)
+(defun modeline-vcs-diffstat--symbol-pstring (metrics)
   "Format the display string using symbols based on METRICS."
   (let ((staged-del-str (make-string (plist-get metrics :staged-minus-count) modeline-vcs-diffstat-char-del))
         (unstaged-del-str (make-string (plist-get metrics :unstaged-minus-count) modeline-vcs-diffstat-char-del))
@@ -206,27 +206,43 @@ Adds totals, symbol counts, and staged/unstaged counts to the plist."
             (propertize unstaged-add-str 'face (doom-modeline-face modeline-vcs-diffstat-face-unstaged-add))
             (propertize staged-add-str 'face (doom-modeline-face modeline-vcs-diffstat-face-staged-add)))))
 
-(defun modeline-vcs-diffstat--custom-human-readable (num)
-  "Format NUM into a human-readable string with custom suffixes.
-Uses K, M, B, T, and then falls back to E-notation for larger numbers."
+(defun modeline-vcs-diffstat--format-number-human-readable (num)
+  "Format NUM into a human-readable string with custom suffixes."
   (if (< num 1000)
       (format "%d" num)
     (let* ((power (floor (/ (log10 num) 3)))
            (suffix-entry (assoc (* power 3) modeline-vcs-diffstat-number-suffixes)))
       (if suffix-entry
           (format "%.1f%s" (/ (float num) (expt 1000 power)) (cdr suffix-entry))
-        ;; Fallback to E-notation for Peta and above.
         (let ((num-str (format "%d" num)))
           (format "%sE%d"
                   (substring num-str 0 2)
                   (- (length num-str) 2)))))))
 
-(defun modeline-vcs-diffstat--format-human-readable (metrics)
+(defun modeline-vcs-diffstat--metrics-numeric-pstring (metrics)
   "Format the display string using human-readable numbers based on METRICS."
-  (let ((del-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-removed)))
-        (add-str (modeline-vcs-diffstat--custom-human-readable (plist-get metrics :total-added))))
+  (let ((del-str (modeline-vcs-diffstat--format-number-human-readable (plist-get metrics :total-removed)))
+        (add-str (modeline-vcs-diffstat--format-number-human-readable (plist-get metrics :total-added))))
     (concat (propertize (format "-%s" del-str) 'face (doom-modeline-face 'magit-diffstat-removed))
             (propertize (format " +%s" add-str) 'face (doom-modeline-face 'magit-diffstat-added)))))
+
+(defun modeline-vcs-diffstat--select-formatter (display-methods metrics)
+  "Given METRICS, return formatter selected from modeline-vcs-diffstat-display-methods."
+  (when metrics
+    (let* ((total-changes (+ (or (plist-get metrics :total-removed) 0)
+                             (or (plist-get metrics :total-added) 0))))
+      (when (> total-changes 0)
+        (let* ((method-entry (cl-find-if (lambda (entry) (>= total-changes (car entry)))
+                                         display-methods))
+               (formatter (cdr method-entry)))
+          formatter)))))
+
+(defun modeline-vcs-diffstat--format-metrics (metrics)
+  "Select formatter from METRICS and return a propertized string.
+Internal helper that contains the core display logic."
+  (let ((formatter (modeline-vcs-diffstat--select-formatter modeline-vcs-diffstat-display-methods metrics)))
+    (when formatter
+      (funcall formatter metrics))))
 
 (defvar modeline-vcs-diffstat-keymap
   (let ((map (make-sparse-keymap)))
@@ -234,10 +250,7 @@ Uses K, M, B, T, and then falls back to E-notation for larger numbers."
     map)
   "A keymap for the git-diff-status modeline segment.")
 
-
-;; --- Asynchronous Update and Caching Mechanism ---
-
-(defvar-local modeline-vcs-diffstat--cached-metrics nil
+(defvar-local modeline-vcs-diffstat--git-numstat-cache nil
   "Buffer-local cache for the raw vcs-diffstat metrics plist.
 This is updated asynchronously. The modeline segment reads from this
 cache and formats the string dynamically on each render.")
@@ -249,54 +262,38 @@ cache and formats the string dynamically on each render.")
   "Calculate the diff-stat metrics and update the cache.
 This function performs the slow `git` work and is meant to be called
 asynchronously. It does NOT do any string formatting."
-  (setq modeline-vcs-diffstat--cached-metrics
-        (modeline-vcs-diffstat--calculate-display-metrics (modeline-vcs-diffstat--line-counts)))
-  ;; Force a modeline refresh after updating the cache.
+  (setq modeline-vcs-diffstat--git-numstat-cache (modeline-vcs-diffstat--num-lines-changed))
   (force-mode-line-update))
 
 ;; --- Modeline Segment Definition and Setup ---
 
 (doom-modeline-def-segment modeline-vcs-diffstat
   "A clickable segment showing staged and unstaged changes."
-  ;; The segment body now handles all rendering dynamically.
-  ;; It reads the raw data from the cache and builds the string on every redraw.
-  ;; This is fast and ensures faces update correctly for active/inactive windows.
-  (when-let* ((metrics modeline-vcs-diffstat--cached-metrics)
-              (total-changes (+ (or (plist-get metrics :total-removed) 0)
-                                (or (plist-get metrics :total-added) 0))))
-    (when (> total-changes 0)
-      (let* ((method-entry (cl-find-if (lambda (entry) (>= total-changes (car entry)))
-                                       modeline-vcs-diffstat-display-methods))
-             (formatter (cdr method-entry)))
-        (when formatter
-          (propertize
-           (funcall formatter metrics)
-           ;; Common properties for the whole segment.
-           'mouse-face 'mode-line-highlight
-           'local-map modeline-vcs-diffstat-keymap
-           'help-echo (concat
-                       "Staged: "
-                       (propertize (format "-%d" (plist-get metrics :staged-removed)) 'face 'magit-diffstat-removed) " "
-                       (propertize (format "+%d" (plist-get metrics :staged-added)) 'face 'magit-diffstat-added)
-                       " | Unstaged: "
-                       (propertize (format "-%d" (plist-get metrics :unstaged-removed)) 'face 'magit-diffstat-removed) " "
-                       (propertize (format "+%d" (plist-get metrics :unstaged-added)) 'face 'magit-diffstat-added))))))))
+  (when-let ((pstring (modeline-vcs-diffstat--format-metrics (modeline-vcs-diffstat--metrics modeline-vcs-diffstat--git-numstat-cache))))
+    (propertize pstring
+     ;; Common properties for the whole segment.
+     'mouse-face 'mode-line-highlight
+     'local-map modeline-vcs-diffstat-keymap
+     'help-echo (concat
+                 "Staged: "
+                 (propertize (format "-%d" (plist-get modeline-vcs-diffstat--git-numstat-cache :staged-removed)) 'face 'magit-diffstat-removed) " "
+                 (propertize (format "+%d" (plist-get modeline-vcs-diffstat--git-numstat-cache :staged-added)) 'face 'magit-diffstat-added)
+                 " | Unstaged: "
+                 (propertize (format "-%d" (plist-get modeline-vcs-diffstat--git-numstat-cache :unstaged-removed)) 'face 'magit-diffstat-removed) " "
+                 (propertize (format "+%d" (plist-get modeline-vcs-diffstat--git-numstat-cache :unstaged-added)) 'face 'magit-diffstat-added)))))
 
 (defun modeline-vcs-diffstat--setup-update-timer ()
   "Start or restart the idle timer to update VCS diff stats for the current buffer."
   ;; Cancel any existing timer for this buffer first.
   (when (timerp modeline-vcs-diffstat--update-timer)
     (cancel-timer modeline-vcs-diffstat--update-timer))
-  ;; Run once immediately, then every 2 seconds of idle time.
   (modeline-vcs-diffstat--update-cache)
   (setq modeline-vcs-diffstat--update-timer
-        (run-with-idle-timer 2 t #'modeline-vcs-diffstat--update-cache)))
+        (run-with-idle-timer 1 t #'modeline-vcs-diffstat--update-cache)))
 
-;; Add hooks to trigger updates at appropriate times.
 (add-hook 'find-file-hook #'modeline-vcs-diffstat--setup-update-timer)
 (add-hook 'revert-buffer-hook #'modeline-vcs-diffstat--setup-update-timer)
 (add-hook 'after-save-hook #'modeline-vcs-diffstat--update-cache)
-;; Update after Magit operations like staging, committing, or refreshing.
 (add-hook 'magit-post-refresh-hook #'modeline-vcs-diffstat--update-cache)
 
 (provide 'modeline-vcs-diffstat)
