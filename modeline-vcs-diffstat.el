@@ -3,12 +3,10 @@
 ;; Copyright (C) 2025 Richie Kirchofer
 
 ;; Author: Richie Kirchofer
-;; Maintainer: Richie Kirchofer
-
-;; Homepage: https://github.com/rgkirch/modeline-vcs-diffstat
-
-;; Package-Version: 0.6
+;; Version: 0.6
 ;; Package-Requires: ((emacs "26.1") doom-modeline magit)
+;; Keywords:
+;; URL: https://github.com/rgkirch/modeline-vcs-diffstat
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;

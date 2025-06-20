@@ -1,6 +1,32 @@
 # -*- lexical-binding:t; coding:utf-8 -*-
 #+AUTHOR: Richie Kirchofer
 
+* beep-boop
+:PROPERTIES:
+:CREATED-AT: [2025-06-16 21:36:01]
+:END:
+#+begin_src emacs-lisp :results none
+(defun beep-boop (metrics)
+  (propertized-text-to-svg (modeline-vcs-diffstat--format-metrics (modeline-vcs-diffstat--metrics metrics))))
+#+end_src
+
+
+#+begin_src emacs-lisp :results file :file ./assets/05.svg
+(beep-boop
+ '(:staged-removed 20
+   :staged-added 20))
+#+end_src
+
+[[file:./assets/05.svg]]
+
+
+#+begin_src emacs-lisp :results file :file ./assets/06.svg
+(beep-boop
+ '(:staged-removed 117
+   :staged-added 630))
+#+end_src
+
+[[file:./assets/06.svg]]
 * modeline-vcs-diffstat
 
 - ✅ Visually Compact
@@ -17,7 +43,6 @@ One changed line would show one deletion and one addition.
    :staged-added 1))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/01.svg]]
 
 By default, the modeline segment shows only one character for every ten lines changed. e.g. 33 lines deleted and 66 added would look like this.
@@ -28,7 +53,6 @@ By default, the modeline segment shows only one character for every ten lines ch
    :staged-added 66))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/02.svg]]
 
 By default, when there would be more than ten characters, the modeline segment uses numbers instead.
@@ -39,10 +63,7 @@ By default, when there would be more than ten characters, the modeline segment u
    :staged-added 66))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/03.svg]]
-
-[[file:assets/diff-3.svg]]
 
 It also gracfully handles lots of changes.
 
@@ -52,7 +73,6 @@ It also gracfully handles lots of changes.
    :staged-added 3917654))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/04.svg]]
 
 * Features
@@ -68,7 +88,7 @@ It also gracfully handles lots of changes.
 * Installation
 
 Add the following to your ~$DOOMDIR/packages.el~. The ~:recipe~ tells Doom how to fetch the package directly from GitHub.
-    #+BEGIN_SRC emacs-lisp
+    #+BEGIN_SRC emacs-lisp :eval no
     (package! modeline-vcs-diffstat
       :recipe (:host github
                :repo "rgkirch/modeline-vcs-diffstat"))
@@ -77,7 +97,7 @@ Add the following to your ~$DOOMDIR/packages.el~. The ~:recipe~ tells Doom how t
 Ensure ~modeline-vcs-diffstat.el~ is on your ~load-path~ and add it to your ~doom-modeline~ configuration.
 
 Example using ~use-package~:
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :eval no
 (use-package doom-modeline
   :ensure t
   :init (doom-modeline-mode 1)
@@ -101,7 +121,6 @@ Set ~modeline-vcs-diffstat-display-methods~ to switch from symbols to numbers af
    :staged-added 25))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/07.svg]]
 
 #+begin_src emacs-lisp :results file :file ./assets/08.svg
@@ -113,7 +132,6 @@ Set ~modeline-vcs-diffstat-display-methods~ to switch from symbols to numbers af
      :staged-added 25)))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/08.svg]]
 
 
@@ -127,7 +145,6 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
    :staged-added 25))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/09.svg]]
 
 #+begin_src emacs-lisp :results file :file ./assets/10.svg
@@ -139,81 +156,9 @@ By default, one symbol represents ~10 lines. To make it one symbol per 5 lines, 
      :staged-added 25)))
 #+end_src
 
-#+RESULTS:
 [[file:./assets/10.svg]]
 ** Change colors
 
-* 🛑 This is not related to the package. You can stop reading. :noexport:
-#+begin_src emacs-lisp :results none
-(concat (propertize "-115" 'face 'magit-diff-removed-highlight)
-        (propertize "+250" 'face 'magit-diff-added-highlight))
-#+end_src
-
-#+begin_src emacs-lisp
-(progn (setq lexical-binding t)
-
- (defun my/create-diff-svg (filename width staged-del unstaged-del unstaged-add staged-add)
-   "Create a diff-style SVG file with red and green text for changes.
-FILENAME is the path, WIDTH the canvas width. The other four
-arguments are strings for staged deletions, unstaged deletions,
-unstaged additions, and staged additions."
-   (let* ((staged-del-color (or (face-foreground 'magit-diff-removed nil t) "darkred"))
-          (unstaged-del-color (or (face-foreground 'magit-diff-removed-highlight nil t) "red"))
-          (unstaged-add-color (or (face-foreground 'magit-diff-added-highlight nil t) "green"))
-          (staged-add-color (or (face-foreground 'magit-diff-added nil t) "darkgreen"))
-          (svg (svg-create width 20))
-          (text-node
-           (dom-node 'text
-                     `((font-family . "monospace") (font-size . "16px")
-                       (font-weight . "bold") (x . "50%") (y . "50%")
-                       (dominant-baseline . "middle") (text-anchor . "middle")))))
-     ;; Append tspan nodes for each type of change.
-     (dom-append-child text-node
-                       (dom-node 'tspan `((fill . ,staged-del-color)) staged-del))
-     (dom-append-child text-node
-                       (dom-node 'tspan `((fill . ,unstaged-del-color)) unstaged-del))
-     (dom-append-child text-node
-                       (dom-node 'tspan `((fill . ,unstaged-add-color)) unstaged-add))
-     (dom-append-child text-node
-                       (dom-node 'tspan `((fill . ,staged-add-color)) staged-add))
-
-     (svg--append svg text-node)
-     svg))
-
-
- (my/create-diff-svg "assets/diff-3.svg" 85 "" "-115" "+250" "")
-
- )
-#+end_src
-
-* beep-boop
-:PROPERTIES:
-:CREATED-AT: [2025-06-16 21:36:01]
-:END:
-#+begin_src emacs-lisp :results none
-(defun beep-boop (metrics)
-  (propertized-text-to-svg (modeline-vcs-diffstat--format-metrics (modeline-vcs-diffstat--metrics metrics))))
-#+end_src
-
-
-#+begin_src emacs-lisp :results file :file ./assets/05.svg
-(beep-boop
- '(:staged-removed 20
-   :staged-added 20))
-#+end_src
-
-#+RESULTS:
-[[file:./assets/05.svg]]
-
-
-#+begin_src emacs-lisp :results file :file ./assets/06.svg
-(beep-boop
- '(:staged-removed 117
-   :staged-added 630))
-#+end_src
-
-#+RESULTS:
-[[file:./assets/06.svg]]
 * See [[https://github.com/rgkirch/my-emacs-packages][my other emacs packages]]
 * License
 

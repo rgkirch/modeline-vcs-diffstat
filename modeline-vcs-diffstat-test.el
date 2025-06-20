@@ -1,4 +1,4 @@
-;;; modeline-vcs-diffstat-tests.el --- Tests for modeline-vcs-diffstat -*- lexical-binding: t; -*-
+;;; modeline-vcs-diffstat-test.el --- Tests for modeline-vcs-diffstat -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Richie Kirchofer
 ;;
@@ -108,6 +108,6 @@
              :total-removed 0 :total-added 0)))
       (should (null (doom-modeline-segment--modeline-vcs-diffstat))))))
 
-(provide 'modeline-vcs-diffstat-tests)
+(provide 'modeline-vcs-diffstat-test)
 
-;;; modeline-vcs-diffstat-tests.el ends here
+;;; modeline-vcs-diffstat-test.el ends here
